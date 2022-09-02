@@ -20,10 +20,10 @@ func main() {
 
 	value, err := third.Await()
 	if err != nil {
-		t.Error("error is not expected")
+		fmt.Println("error is not expected")
 	}
 	if value != true {
-		t.Error("value is not true")
+        fmt.Println("value is not true")
 	}
 }
 ```
