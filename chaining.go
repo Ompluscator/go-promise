@@ -89,8 +89,8 @@ func WithRetry[V any](promise Promise[V], maxRetries int) Promise[V] {
 			} else if maxRetries > 0 {
 				reject(err)
 			} else {
-				max--
+				maxRetries--
 			}
 		}
-	}
+	})
 }

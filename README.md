@@ -1,11 +1,7 @@
-package go_promise
+# JS Promise in Golang
 
-import (
-	"errors"
-	"testing"
-)
-
-func TestThen(t *testing.T) {
+```go
+func main() {
 	first := New(func(resolve ResolveFunc[int], reject RejectFunc) {
 		resolve(10)
 	})
@@ -30,3 +26,4 @@ func TestThen(t *testing.T) {
 		t.Error("value is not true")
 	}
 }
+```

@@ -73,7 +73,7 @@ func Resolve[V any](value V) Promise[V] {
 	})
 }
 
-func PreRun[V](p Promise[V]) Promise[V] {
+func PreRun[V any](p Promise[V]) Promise[V] {
 	resultChan := make(settledResultChanel[V])
 	go func() {
 		value, err := p.Await()
