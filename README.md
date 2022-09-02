@@ -23,7 +23,7 @@ func main() {
 		fmt.Println("error is not expected")
 	}
 	if value != true {
-        fmt.Println("value is not true")
+		fmt.Println("value is not true")
 	}
 }
 ```
