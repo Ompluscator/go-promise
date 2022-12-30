@@ -7,20 +7,15 @@ import (
 
 
 func main() {
-    promise := go_promise.Chain(
-        go_promise.Function(func() (int, error) {
-            return 10, nil
-        }),
-        go_promise.Then(func(value int) (float64, error) {
-            return 0, errors.New("error")
-        }),
-        go_promise.Catch(func(err error) float64 {
-            return 11.1
-        }),
-        go_promise.Then(func(value float64) (bool, error) {
-            return value > 11, nil
-        }),
-    )
+    promise := go_promise.Function(func() (int, error) {
+        return 10, nil
+    }).With(go_promise.Then(func(value int) (float64, error) {
+        return 0, errors.New("error")
+    })).With(go_promise.Catch(func(err error) float64 {
+        return 11.1
+    })).With(go_promise.Then(func(value float64) (bool, error) {
+        return value > 11, nil
+    }))
 
     value, err := go_promise.Await[bool](promise)
     if err != nil {

@@ -53,12 +53,3 @@ func Catch[V any](catch CatchFunc[V]) ChainFunc {
 		})
 	}
 }
-
-func Chain(promise Promise, chain ...ChainFunc) Promise {
-	result := promise
-	for _, f := range chain {
-		result = f(result)
-	}
-
-	return result
-}

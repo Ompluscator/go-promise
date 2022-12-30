@@ -6,6 +6,7 @@ import (
 )
 
 type Promise interface {
+	With(chainFunc ChainFunc) Promise
 	await() (any, error)
 }
 
@@ -17,6 +18,10 @@ type promise[V any] struct {
 	value       V
 	err         error
 	isDone      bool
+}
+
+func (p *promise[V]) With(chainFunc ChainFunc) Promise {
+	return chainFunc(p)
 }
 
 func (p *promise[V]) await() (any, error) {
