@@ -1,10 +1,15 @@
 package go_promise
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
-type Promise[V any] interface {
-	Await() (V, error)
+type Promise interface {
+	await() (any, error)
 }
+
+var _ Promise = &promise[int]{}
 
 type promise[V any] struct {
 	mutex       *sync.Mutex
@@ -14,11 +19,7 @@ type promise[V any] struct {
 	isDone      bool
 }
 
-func (p *promise[V]) Await() (V, error) {
-	return p.execute()
-}
-
-func (p promise[V]) execute() (V, error) {
+func (p *promise[V]) await() (any, error) {
 	p.mutex.Lock()
 	go func() {
 		p.mutex.Unlock()
@@ -32,7 +33,7 @@ func (p promise[V]) execute() (V, error) {
 	errChan := make(chan error)
 
 	go func() {
-		p.executeFunc(createResolveMethod(valueChan), createRejectMethod(errChan))
+		p.executeFunc(createResolveMethod[V](valueChan), createRejectMethod(errChan))
 	}()
 
 	var value V
@@ -54,43 +55,18 @@ func (p promise[V]) execute() (V, error) {
 	return value, err
 }
 
-func New[V any](executeFunc ExecuteFunc[V]) Promise[V] {
-	return &promise[V]{
-		mutex:       &sync.Mutex{},
-		executeFunc: executeFunc,
+func Await[V any](promise Promise) (V, error) {
+	var empty V
+
+	result, err := promise.await()
+	if err != nil {
+		return empty, err
 	}
-}
 
-func Reject(err error) Promise[any] {
-	return New(func(_ ResolveFunc[any], reject RejectFunc) {
-		reject(err)
-	})
-}
+	transformed, ok := result.(V)
+	if !ok {
+		return empty, errors.New("invalid type received")
+	}
 
-func Resolve[V any](value V) Promise[V] {
-	return New[V](func(resolve ResolveFunc[V], _ RejectFunc) {
-		resolve(value)
-	})
-}
-
-func PreRun[V any](p Promise[V]) Promise[V] {
-	resultChan := make(settledResultChanel[V])
-	go func() {
-		value, err := p.Await()
-		resultChan <- SettledResult[V]{
-			Value: value,
-			Error: err,
-		}
-	}()
-
-	return New[V](func(resolve ResolveFunc[V], reject RejectFunc) {
-		result := <-resultChan
-		close(resultChan)
-
-		if result.Error != nil {
-			reject(result.Error)
-		} else {
-			resolve(result.Value)
-		}
-	})
+	return transformed, nil
 }

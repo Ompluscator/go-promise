@@ -6,23 +6,22 @@ import (
 )
 
 func TestThen(t *testing.T) {
-	first := New(func(resolve ResolveFunc[int], reject RejectFunc) {
-		resolve(10)
-	})
+	promise := Chain(
+		Function(func() (int, error) {
+			return 10, nil
+		}),
+		Then(func(value int) (float64, error) {
+			return 0, errors.New("error")
+		}),
+		Catch(func(err error) float64 {
+			return 11.1
+		}),
+		Then(func(value float64) (bool, error) {
+			return value > 11, nil
+		}),
+	)
 
-	second := WithThen[int, float64](first, func(value int) (float64, error) {
-		return 0, errors.New("error")
-	})
-
-	catched := WithCatch[float64, float64](second, func(err error) float64 {
-		return 11.1
-	})
-
-	third := WithThen[float64, bool](catched, func(value float64) (bool, error) {
-		return value > 11, nil
-	})
-
-	value, err := third.Await()
+	value, err := Await[bool](promise)
 	if err != nil {
 		t.Error("error is not expected")
 	}
