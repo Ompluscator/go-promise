@@ -1,29 +1,33 @@
 # JS Promise in Golang
 
 ```go
+import (
+    "github.com/ompluscator/go-promise"
+)
+
+
 func main() {
-	first := New(func(resolve ResolveFunc[int], reject RejectFunc) {
-		resolve(10)
-	})
+    promise := go_promise.Chain(
+        go_promise.Function(func() (int, error) {
+            return 10, nil
+        }),
+        go_promise.Then(func(value int) (float64, error) {
+            return 0, errors.New("error")
+        }),
+        go_promise.Catch(func(err error) float64 {
+            return 11.1
+        }),
+        go_promise.Then(func(value float64) (bool, error) {
+            return value > 11, nil
+        }),
+    )
 
-	second := WithThen[int, float64](first, func(value int) (float64, error) {
-		return 0, errors.New("error")
-	})
-
-	catched := WithCatch[float64, float64](second, func(err error) float64 {
-		return 11.1
-	})
-
-	third := WithThen[float64, bool](catched, func(value float64) (bool, error) {
-		return value > 11, nil
-	})
-
-	value, err := third.Await()
-	if err != nil {
-		fmt.Println("error is not expected")
-	}
-	if value != true {
-		fmt.Println("value is not true")
-	}
+    value, err := go_promise.Await[bool](promise)
+    if err != nil {
+        fmt.Println("error is not expected")
+    }
+    if value != true {
+        fmt.Println("value is not true")
+    }
 }
 ```
