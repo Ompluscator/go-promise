@@ -39,7 +39,7 @@ func Function[V any](fn PromiseFunc[V]) Promise {
 	})
 }
 
-const PromiseTimeoutErr = "promise.timeout"
+var TimeoutErr = errors.New("promise.timeout")
 
 func WithTimeout[V any](promise Promise, duration time.Duration) Promise {
 	return New(func(resolve ResolveFunc[V], reject RejectFunc) {
@@ -52,33 +52,13 @@ func WithTimeout[V any](promise Promise, duration time.Duration) Promise {
 		}()
 
 		go func() {
-			value, err := promise.await()
-			if err != nil {
-				resultChan <- SettledResult[V]{
-					Error: err,
-				}
-				group.Done()
-				return
-			}
-
-			transformed, ok := value.(V)
-			if !ok {
-				resultChan <- SettledResult[V]{
-					Error: errors.New("invalid type received"),
-				}
-				group.Done()
-				return
-			}
-
-			resultChan <- SettledResult[V]{
-				Value: transformed,
-			}
+			sendSettledResultToChannel[V](promise, resultChan)
 			group.Done()
 		}()
 
 		select {
 		case <-time.After(duration):
-			reject(errors.New(PromiseTimeoutErr))
+			reject(TimeoutErr)
 		case result := <-resultChan:
 			if result.Error != nil {
 				reject(result.Error)
@@ -89,49 +69,18 @@ func WithTimeout[V any](promise Promise, duration time.Duration) Promise {
 	})
 }
 
-func WithRetry[V any](promise Promise, maxRetries int) Promise {
-	return New(func(resolve ResolveFunc[V], reject RejectFunc) {
-		for true {
-			value, err := promise.await()
-			if err == nil {
-				transformed, ok := value.(V)
-				if !ok {
-					reject(errors.New("invalid type received"))
-					return
-				}
+var MaxRetriesErr = errors.New("promise.maxRetries")
 
-				resolve(transformed)
-			} else if maxRetries == 0 {
-				reject(err)
-			} else {
-				maxRetries--
-			}
-		}
+func WithRetry[V any](promise Promise, maxRetries int) Promise {
+	return Function(func() (V, error) {
+		return retry[V](promise, maxRetries)
 	})
 }
 
-func WithPreExecute[V any](promise Promise) Promise {
+func AsPreExecuted[V any](promise Promise) Promise {
 	resultChan := make(settledResultChanel[V])
 	go func() {
-		value, err := promise.await()
-		if err != nil {
-			resultChan <- SettledResult[V]{
-				Error: err,
-			}
-			return
-		}
-
-		transformed, ok := value.(V)
-		if !ok {
-			resultChan <- SettledResult[V]{
-				Error: errors.New("invalid type received"),
-			}
-			return
-		}
-
-		resultChan <- SettledResult[V]{
-			Value: transformed,
-		}
+		sendSettledResultToChannel[V](promise, resultChan)
 	}()
 
 	return New(func(resolve ResolveFunc[V], reject RejectFunc) {
@@ -144,4 +93,46 @@ func WithPreExecute[V any](promise Promise) Promise {
 			resolve(result.Value)
 		}
 	})
+}
+
+func sendSettledResultToChannel[V any](promise Promise, resultChan settledResultChanel[V]) {
+	value, err := promise.await()
+	if err != nil {
+		resultChan <- SettledResult[V]{
+			Error: err,
+		}
+		return
+	}
+
+	transformed, ok := value.(V)
+	if !ok {
+		resultChan <- SettledResult[V]{
+			Error: InvalidTypeErr,
+		}
+		return
+	}
+
+	resultChan <- SettledResult[V]{
+		Value: transformed,
+	}
+}
+
+func retry[V any](promise Promise, maxRetries int) (V, error) {
+	var empty V
+	if maxRetries < 0 {
+		return empty, MaxRetriesErr
+	}
+
+	value, err := promise.await()
+	if err == nil {
+		transformed, ok := value.(V)
+		if !ok {
+			return retry[V](promise, maxRetries-1)
+		}
+
+		return transformed, nil
+	}
+	promise.Reset()
+
+	return retry[V](promise, maxRetries-1)
 }

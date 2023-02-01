@@ -7,6 +7,7 @@ import (
 
 type Promise interface {
 	With(chainFunc ChainFunc) Promise
+	Reset()
 	await() (any, error)
 }
 
@@ -24,11 +25,20 @@ func (p *promise[V]) With(chainFunc ChainFunc) Promise {
 	return chainFunc(p)
 }
 
+func (p *promise[V]) Reset() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.isDone = false
+	p.err = nil
+
+	var empty V
+	p.value = empty
+}
+
 func (p *promise[V]) await() (any, error) {
 	p.mutex.Lock()
-	go func() {
-		p.mutex.Unlock()
-	}()
+	defer p.mutex.Unlock()
 
 	if p.isDone {
 		return p.value, p.err
@@ -60,6 +70,8 @@ func (p *promise[V]) await() (any, error) {
 	return value, err
 }
 
+var InvalidTypeErr = errors.New("promise.invalidType")
+
 func Await[V any](promise Promise) (V, error) {
 	var empty V
 
@@ -70,7 +82,7 @@ func Await[V any](promise Promise) (V, error) {
 
 	transformed, ok := result.(V)
 	if !ok {
-		return empty, errors.New("invalid type received")
+		return empty, InvalidTypeErr
 	}
 
 	return transformed, nil

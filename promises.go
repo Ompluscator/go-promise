@@ -1,18 +1,16 @@
 package go_promise
 
 import (
-	"errors"
-	"strings"
 	"sync"
 )
 
-type Promises[V any] []Promise
+type Promises []Promise
 
-func (ps Promises[V]) AllSettled() Promise {
-	return New(func(resolve ResolveFunc[[]SettledResult[V]], reject RejectFunc) {
-		resultChan := ps.runRoutines()
+func AllSettled[V any](ps Promises) Promise {
+	return New(func(resolve ResolveFunc[SettledResults[V]], reject RejectFunc) {
+		resultChan := runRoutines[V](ps)
 
-		values := make([]SettledResult[V], 0, len(ps))
+		values := make(SettledResults[V], 0, len(ps))
 		for result := range resultChan {
 			values = append(values, result)
 		}
@@ -21,15 +19,15 @@ func (ps Promises[V]) AllSettled() Promise {
 	})
 }
 
-func (ps Promises[V]) All() Promise {
+func All[V any](ps Promises) Promise {
 	return New(func(resolve ResolveFunc[[]V], reject RejectFunc) {
-		resultChan := ps.runRoutines()
+		resultChan := runRoutines[V](ps)
 
 		values := make([]V, 0, len(ps))
 		for result := range resultChan {
 			if result.Error != nil {
 				reject(result.Error)
-				resultChan.empty()
+				go resultChan.empty()
 				return
 			}
 
@@ -40,30 +38,29 @@ func (ps Promises[V]) All() Promise {
 	})
 }
 
-func (ps Promises[V]) Any() Promise {
+func Any[V any](ps Promises) Promise {
 	return New(func(resolve ResolveFunc[V], reject RejectFunc) {
-		resultChan := ps.runRoutines()
+		resultChan := runRoutines[V](ps)
 
-		errs := make([]string, 0, len(ps))
+		errs := make(Errors, 0, len(ps))
 		for result := range resultChan {
 			if result.Error != nil {
-				errs = append(errs, result.Error.Error())
+				errs = append(errs, result.Error)
 				continue
 			}
 
 			resolve(result.Value)
-			resultChan.empty()
+			go resultChan.empty()
 			return
 		}
 
-		reject(errors.New(strings.Join(errs, ";")))
-		resultChan.empty()
+		reject(errs)
 	})
 }
 
-func (ps Promises[V]) Race() Promise {
+func Race[V any](ps Promises) Promise {
 	return New(func(resolve ResolveFunc[V], reject RejectFunc) {
-		resultChan := ps.runRoutines()
+		resultChan := runRoutines[V](ps)
 
 		result := <-resultChan
 		if result.Error != nil {
@@ -71,11 +68,12 @@ func (ps Promises[V]) Race() Promise {
 		} else {
 			resolve(result.Value)
 		}
-		resultChan.empty()
+
+		go resultChan.empty()
 	})
 }
 
-func (ps Promises[V]) runRoutines() settledResultChanel[V] {
+func runRoutines[V any](ps Promises) settledResultChanel[V] {
 	resultChan := make(settledResultChanel[V])
 	group := &sync.WaitGroup{}
 	group.Add(len(ps))
@@ -94,7 +92,7 @@ func (ps Promises[V]) runRoutines() settledResultChanel[V] {
 			transformed, ok := value.(V)
 			if !ok {
 				resultChan <- SettledResult[V]{
-					Error: errors.New("invalid type received"),
+					Error: InvalidTypeErr,
 				}
 				group.Done()
 				return

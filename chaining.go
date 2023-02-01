@@ -1,7 +1,5 @@
 package go_promise
 
-import "errors"
-
 type ChainFunc func(promise Promise) Promise
 
 type ThenFunc[V, W any] func(value V) (W, error)
@@ -17,7 +15,7 @@ func Then[V, W any](then ThenFunc[V, W]) ChainFunc {
 
 			transformed, ok := value.(V)
 			if !ok {
-				reject(errors.New("invalid type received"))
+				reject(InvalidTypeErr)
 				return
 			}
 
@@ -45,7 +43,7 @@ func Catch[V any](catch CatchFunc[V]) ChainFunc {
 
 			transformed, ok := value.(V)
 			if !ok {
-				reject(errors.New("invalid type received"))
+				reject(InvalidTypeErr)
 				return
 			}
 
